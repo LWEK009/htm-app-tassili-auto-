@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "909237504067",
+    "project_id": "tassili-autocontrole",
+    "storage_bucket": "tassili-autocontrole.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909237504067:android:31f3cd277a9cf3db5facf6",
+        "android_client_info": {
+          "package_name": "com.example.tassili_autocontrole"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLKyw-cKCenYnvujIS3-eVI0qyGZrFEeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:909237504067:android:249c4c1cf695763c5facf6",
+        "android_client_info": {
+          "package_name": "com.tassili.autocontrole"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLKyw-cKCenYnvujIS3-eVI0qyGZrFEeg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
