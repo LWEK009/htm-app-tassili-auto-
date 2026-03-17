@@ -1,36 +1,58 @@
+import 'dart:convert';
 import 'dart:async';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthService {
-  final _auth = FirebaseAuth.instance;
-  final _db   = FirebaseFirestore.instance;
+  static const String _prefUidKey = 'auth_uid';
+  static const String _prefUsersKey = 'local_users';
 
   // ══════════════════════════════════════════════════════════
-  // LOCAL FAKE AUTH (In-Memory)
+  // LOCAL PERSISTENT AUTH
   // ══════════════════════════════════════════════════════════
-  static final List<UserModel> _localUsers = [
+  static List<UserModel> _localUsers = [
     UserModel(uid: 'admin_123', firstName: 'Admin', lastName: 'Tassili', email: 'admin@tassili.com', phone: '0555555555', role: 'admin'),
   ];
-  static String? _fakeSessionUid;
+  static String? _persistedUid;
   static final _authController = StreamController<String?>.broadcast();
-
-  User? get currentUser => _auth.currentUser;
+  static final AuthService _instance = AuthService._internal();
   
-  String? get currentUid {
-    if (_fakeSessionUid != null) return _fakeSessionUid;
-    return _auth.currentUser?.uid;
+  late final Future<void> _initFuture = _init();
+
+  factory AuthService() => _instance;
+
+  AuthService._internal();
+
+  Future<void> _init() async {
+    final prefs = await SharedPreferences.getInstance();
+    
+    // Load local user database
+    final usersJson = prefs.getString(_prefUsersKey);
+    if (usersJson != null) {
+      try {
+        final List<dynamic> decoded = jsonDecode(usersJson);
+        _localUsers = decoded.map((m) => UserModel.fromMap(m['uid'] ?? '', m)).toList();
+        // Ensure admin is always there
+        if (!_localUsers.any((u) => u.uid == 'admin_123')) {
+          _localUsers.add(UserModel(uid: 'admin_123', firstName: 'Admin', lastName: 'Tassili', email: 'admin@tassili.com', phone: '0555555555', role: 'admin'));
+        }
+      } catch (_) {}
+    }
+
+    _persistedUid = prefs.getString(_prefUidKey);
+    _authController.add(_persistedUid);
   }
 
-  // Unified Auth Stream (Fake + Firebase)
-  Stream<String?> get authStateStream {
-    // Initial emission
-    Future.microtask(() => _authController.add(currentUid));
-    return _authController.stream;
-  }
+  String? get currentUid => _persistedUid;
 
-  Stream<User?> get authChanges => _auth.authStateChanges();
+  // Unified Auth Stream
+  late final Stream<String?> authStateStream = _buildAuthStateStream().asBroadcastStream();
+
+  Stream<String?> _buildAuthStateStream() async* {
+    await _initFuture;
+    yield _persistedUid;
+    yield* _authController.stream;
+  }
 
   // ── Inscription ──────────────────────────────────────────
   Future<UserModel> signUp({
@@ -40,6 +62,7 @@ class AuthService {
     required String phone,
     required String password,
   }) async {
+    await _initFuture;
     final fakeUid = 'user_${DateTime.now().millisecondsSinceEpoch}';
     final user = UserModel(
       uid: fakeUid,
@@ -50,23 +73,17 @@ class AuthService {
       role: 'client',
     );
 
-    // Add to Local
+    // Add to Local Database
     if (!_localUsers.any((u) => u.email == user.email)) {
       _localUsers.add(user);
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefUsersKey, jsonEncode(_localUsers.map((u) => u.toMap()..['uid'] = u.uid).toList()));
     }
-    _fakeSessionUid = fakeUid;
-    _authController.add(fakeUid);
 
-    // Try Real Firebase (background)
-    try {
-      final cred = await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      final realUid = cred.user!.uid;
-      // We don't change _fakeSessionUid to realUid yet to keep local data accessible
-      await _db.collection('users').doc(realUid).set(user.copyWith(uid: realUid).toMap());
-    } catch (_) {}
+    _persistedUid = fakeUid;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_prefUidKey, fakeUid);
+    _authController.add(fakeUid);
 
     return user;
   }
@@ -76,70 +93,49 @@ class AuthService {
     required String email,
     required String password,
   }) async {
+    await _initFuture;
     final cleanEmail = email.trim().toLowerCase();
     
-    // Check Local First (Fake Auth)
+    // Check Local Database
     final localMatch = _localUsers.cast<UserModel?>().firstWhere(
       (u) => u?.email.toLowerCase() == cleanEmail,
       orElse: () => null,
     );
 
     if (localMatch != null) {
-      _fakeSessionUid = localMatch.uid;
+      // For a demo/local app, we just match email. 
+      // Password check 'admin123' for admin, others are free for now.
+      if (cleanEmail == 'admin@tassili.com' && password != 'admin123') {
+        throw 'كلمة المرور غير صحيحة';
+      }
+
+      _persistedUid = localMatch.uid;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefUidKey, localMatch.uid);
       _authController.add(localMatch.uid);
       return localMatch;
     }
 
-    // Try Real Firebase
-    try {
-      final cred = await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
-        password: password,
-      );
-      _fakeSessionUid = cred.user!.uid;
-      _authController.add(cred.user!.uid);
-      return await getUserById(cred.user!.uid);
-    } on FirebaseAuthException catch (e) {
-      if (cleanEmail == 'admin@tassili.com' && password == 'admin123') {
-        _fakeSessionUid = 'admin_123';
-        _authController.add('admin_123');
-        return _localUsers.first;
-      }
-      throw _authError(e);
-    } catch (e) {
-      throw 'حدث خطأ غير متوقع';
-    }
+    throw 'لا يوجد حساب بهذا البريد الإلكتروني';
   }
 
   // ── Déconnexion ──────────────────────────────────────────
   Future<void> signOut() async {
-    _fakeSessionUid = null;
+    _persistedUid = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_prefUidKey);
     _authController.add(null);
-    await _auth.signOut();
   }
 
   // ── Récupérer un utilisateur ─────────────────────────────
   Future<UserModel?> getUserById(String uid) async {
-    // 1. Priority: Local Cache
+    await _initFuture;
     final local = _localUsers.cast<UserModel?>().firstWhere(
       (u) => u?.uid == uid,
       orElse: () => null,
     );
     if (local != null) return local;
-
-    // 2. Secondary: Firestore
-    try {
-      final doc = await _db.collection('users').doc(uid).get();
-      if (doc.exists) {
-        final u = UserModel.fromMap(uid, doc.data()!);
-        if (!_localUsers.any((lu) => lu.uid == u.uid)) {
-          _localUsers.add(u); 
-        }
-        return u;
-      }
-    } catch (_) {}
     
-    // 3. Last Resort: If it's a fake session but we lost the object (unlikely in memory but for safety)
     if (uid.startsWith('user_')) {
       return UserModel(
         uid: uid,
@@ -149,25 +145,12 @@ class AuthService {
         phone: '...',
       );
     }
-
     return null;
   }
 
   Future<String?> getUserRole(String uid) async {
+    await _initFuture;
     final u = await getUserById(uid);
     return u?.role;
-  }
-
-  String _authError(FirebaseAuthException e) {
-    switch (e.code) {
-      case 'email-already-in-use':  return 'البريد الإلكتروني مستخدم مسبقاً';
-      case 'invalid-email':         return 'البريد الإلكتروني غير صحيح';
-      case 'weak-password':         return 'كلمة المرور ضعيفة جداً (6 أحرف على الأقل)';
-      case 'user-not-found':        return 'لا يوجد حساب بهذا البريد الإلكتروني';
-      case 'wrong-password':        return 'كلمة المرور غير صحيحة';
-      case 'too-many-requests':     return 'محاولات كثيرة، يرجى المحاولة لاحقاً';
-      case 'network-request-failed':return 'خطأ في الاتصال بالإنترنت';
-      default:                      return 'حدث خطأ: ${e.message}';
-    }
   }
 }

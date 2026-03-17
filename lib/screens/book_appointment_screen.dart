@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'payment_screen.dart';
 import '../services/firestore_service.dart';
@@ -94,7 +93,7 @@ class _BookAppointmentScreenState extends State<BookAppointmentScreen> {
 
     setState(() => _loading = true);
     try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final uid = _auth.currentUid!;
       final user = await _auth.getUserById(uid);
       final a = AppointmentModel(
         userId: uid,

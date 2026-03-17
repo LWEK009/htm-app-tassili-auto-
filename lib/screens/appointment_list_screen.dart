@@ -32,6 +32,13 @@ class _AppointmentListScreenState extends State<AppointmentListScreen>
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    // Artificial delay to show the indicator and simulate work, 
+    // though the stream will update automatically if data changes on server.
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) setState(() {}); 
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -56,14 +63,26 @@ class _AppointmentListScreenState extends State<AppointmentListScreen>
               final done      = all.where((a) => a.status == 'done').toList();
               final cancelled = all.where((a) => a.status == 'cancelled' || a.status == 'expired').toList();
 
-              return TabBarView(
-                controller: _tabs,
-                children: [
-                  _listView(active, 'لا توجد مواعيد نشطة', 'احجز موعداً جديداً من الصفحة الرئيسية'),
-                  _listView(done, 'سجل المواعيد فارغ', 'ستظهر المواعيد المكتملة هنا'),
-                  _listView(cancelled, 'لا توجد مواعيد ملغاة', 'المواعيد التي قمت بإلغائها ستظهر هنا'),
-                ],
-              );
+                  return TabBarView(
+                    controller: _tabs,
+                    children: [
+                      RefreshIndicator(
+                        onRefresh: _handleRefresh,
+                        color: AppColors.primary,
+                        child: _listView(active, 'لا توجد مواعيد نشطة', 'احجز موعداً جديداً من الصفحة الرئيسية'),
+                      ),
+                      RefreshIndicator(
+                        onRefresh: _handleRefresh,
+                        color: AppColors.primary,
+                        child: _listView(done, 'سجل المواعيد فارغ', 'ستظهر المواعيد المكتملة هنا'),
+                      ),
+                      RefreshIndicator(
+                        onRefresh: _handleRefresh,
+                        color: AppColors.primary,
+                        child: _listView(cancelled, 'لا توجد مواعيد ملغاة', 'المواعيد التي قمت بإلغائها ستظهر هنا'),
+                      ),
+                    ],
+                  );
             },
           ),
         ),
@@ -128,6 +147,7 @@ class _AppointmentListScreenState extends State<AppointmentListScreen>
       );
     }
     return ListView.builder(
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
       itemCount: list.length,
       itemBuilder: (context, i) {

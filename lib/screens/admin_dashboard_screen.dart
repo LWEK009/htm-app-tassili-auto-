@@ -53,25 +53,28 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen>
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
+        backgroundColor: AppColors.primary,
+        centerTitle: false,
         title: Row(
           children: [
-            Text('Tassili ', style: GoogleFonts.cairo(color: AppColors.orange, fontWeight: FontWeight.w900, fontSize: 18)),
+            Text('Tassili ', style: GoogleFonts.cairo(color: AppColors.orangeLight, fontWeight: FontWeight.w900, fontSize: 18)),
             Text('Admin', style: GoogleFonts.cairo(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16)),
           ],
         ),
         actions: [
           IconButton(
             icon: const Icon(Icons.power_settings_new_rounded),
+            color: Colors.white,
             tooltip: 'تسجيل الخروج',
             onPressed: _signOut,
           ),
         ],
         bottom: TabBar(
           controller: _tabs,
-          indicatorColor: AppColors.orange,
+          indicatorColor: AppColors.orangeLight,
           indicatorWeight: 4,
           labelColor: Colors.white,
-          unselectedLabelColor: Colors.white60,
+          unselectedLabelColor: Colors.white.withOpacity(0.7),
           labelStyle: GoogleFonts.cairo(fontWeight: FontWeight.w900, fontSize: 13),
           unselectedLabelStyle: GoogleFonts.cairo(fontWeight: FontWeight.w700, fontSize: 12),
           tabs: const [
